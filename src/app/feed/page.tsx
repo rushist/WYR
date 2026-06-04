@@ -125,9 +125,22 @@ export default function FeedPage() {
   if (!currentQuestion) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <p className="text-ghost/60 text-lg">No questions yet.</p>
-          <p className="text-ghost/40 text-sm">Run the seed or scrape endpoint to populate questions.</p>
+        <div className="text-center space-y-4 max-w-md px-6">
+          <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-text text-lg font-display font-semibold">You&apos;ve answered everything!</p>
+          <p className="text-ghost/50 text-sm">
+            New questions drop regularly. Previously answered questions will resurface after 7 days to check your bias.
+          </p>
+          <button
+            onClick={() => loadQuestions()}
+            className="mt-4 px-6 py-2.5 rounded-xl border border-accent/30 text-accent text-sm hover:bg-accent/10 transition-colors cursor-pointer"
+          >
+            Refresh Feed
+          </button>
         </div>
       </div>
     );

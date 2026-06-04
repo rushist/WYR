@@ -44,36 +44,52 @@ Return ONLY a JSON array. Each element:
 If a title should be skipped, do NOT include it. Return valid JSON only, no markdown fences.`;
 
 async function fetchRedditRSS(): Promise<{ title: string; redditId: string }[]> {
-  const res = await fetch("https://www.reddit.com/r/WouldYouRather/.rss", {
-    headers: {
-      "User-Agent": "WYR-App/1.0 (question scraper)",
-    },
-    next: { revalidate: 0 },
-  });
+  const sources = [
+    "https://www.reddit.com/r/WouldYouRather/new.rss?limit=100",
+    "https://www.reddit.com/r/hypotheticalsituation/new.rss?limit=100",
+    "https://www.reddit.com/r/polls/new.rss?limit=100"
+  ];
 
-  if (!res.ok) {
-    throw new Error(`Reddit RSS returned ${res.status}`);
-  }
-
-  const xml = await res.text();
-  const entries: { title: string; redditId: string }[] = [];
-
-  // Parse XML entries with regex (lightweight, no XML parser needed)
-  const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
-  let match;
-  while ((match = entryRegex.exec(xml)) !== null) {
-    const entry = match[1];
-    const titleMatch = entry.match(/<title>([\s\S]*?)<\/title>/);
-    const idMatch = entry.match(/<id>([\s\S]*?)<\/id>/);
-    if (titleMatch && idMatch) {
-      entries.push({
-        title: titleMatch[1].trim(),
-        redditId: idMatch[1].trim(),
+  const fetchSource = async (url: string) => {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "WYR-App/1.0 (question scraper)",
+        },
+        next: { revalidate: 0 },
       });
-    }
-  }
 
-  return entries;
+      if (!res.ok) {
+        console.error(`Reddit RSS returned ${res.status} for ${url}`);
+        return [];
+      }
+
+      const xml = await res.text();
+      const entries: { title: string; redditId: string }[] = [];
+
+      const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+      let match;
+      while ((match = entryRegex.exec(xml)) !== null) {
+        const entry = match[1];
+        const titleMatch = entry.match(/<title>([\s\S]*?)<\/title>/);
+        const idMatch = entry.match(/<id>([\s\S]*?)<\/id>/);
+        if (titleMatch && idMatch) {
+          entries.push({
+            title: titleMatch[1].trim(),
+            redditId: idMatch[1].trim(),
+          });
+        }
+      }
+      return entries;
+    } catch (err) {
+      console.error(`Error fetching ${url}:`, err);
+      return [];
+    }
+  };
+
+  const results = await Promise.all(sources.map(fetchSource));
+  // Flatten array
+  return results.flat();
 }
 
 async function formatWithGemini(

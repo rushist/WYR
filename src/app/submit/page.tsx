@@ -35,12 +35,42 @@ export default function SubmitPage() {
   const [severity, setSeverity] = useState(3);
   const [submitted, setSubmitted] = useState(false);
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const isValid = text.trim() && optionA.trim() && optionB.trim() && (!showOptionC || optionC.trim());
 
-  const handleSubmit = () => {
-    if (!isValid) return;
-    // TODO: submit to Supabase
-    setSubmitted(true);
+  const handleSubmit = async () => {
+    if (!isValid || isSubmitting) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch("/api/submit-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          choice_a: optionA,
+          choice_b: optionB,
+          choice_c: showOptionC ? optionC : null,
+          category,
+          severity,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit question");
+      }
+
+      setSubmitted(true);
+    } catch (err: any) {
+      setErrorMsg(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRemoveOptionC = () => {
@@ -179,13 +209,20 @@ export default function SubmitPage() {
                 </div>
               </div>
 
+              {/* Error Message */}
+              {errorMsg && (
+                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="p-4 rounded-xl bg-rose/10 border border-rose/20 text-rose text-sm">
+                  {errorMsg}
+                </motion.div>
+              )}
+
               {/* Submit */}
-              <button onClick={handleSubmit} disabled={!isValid}
+              <button onClick={handleSubmit} disabled={!isValid || isSubmitting}
                 className="w-full py-4 rounded-xl bg-accent text-white font-semibold hover:bg-accent/90 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
-                Submit Question
+                {isSubmitting ? "Validating..." : "Submit Question"}
               </button>
 
-              <p className="text-xs text-ghost/40 text-center">Community prompts are reviewed before appearing.</p>
+              <p className="text-xs text-ghost/40 text-center">Community prompts are reviewed by AI before appearing.</p>
             </div>
           </motion.div>
         ) : (

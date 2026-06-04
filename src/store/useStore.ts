@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabaseClient";
-import { fetchQuestions } from "@/lib/questions";
+import { fetchQuestions, fetchUserAnswers } from "@/lib/questions";
 import type { Question } from "@/data/questions";
 
 export type ChoiceKey = "A" | "B" | "C";
@@ -18,7 +18,7 @@ interface WYRStore {
   isAuthenticated: boolean;
   user: { email: string; id: string; name?: string } | null;
   ageGroup: string | null;
-  setAuth: (user: { email: string; id: string; name?: string } | null) => void;
+  setAuth: (user: { email: string; id: string; name?: string } | null) => Promise<void>;
   setAgeGroup: (age: string) => void;
   logout: () => void;
 
@@ -59,8 +59,18 @@ export const useStore = create<WYRStore>((set, get) => ({
   isAuthenticated: false,
   user: null,
   ageGroup: null,
-  setAuth: (user) =>
-    set({ user, isAuthenticated: !!user, showPaywall: false }),
+  setAuth: async (user) => {
+    set({ user, isAuthenticated: !!user, showPaywall: false });
+    if (user) {
+      // Restore answer history from Supabase
+      const pastAnswers = await fetchUserAnswers(user.id);
+      if (pastAnswers.length > 0) {
+        set({ answers: pastAnswers, answeredCount: pastAnswers.length });
+      }
+      // Reload questions filtered for this user
+      get().loadQuestions();
+    }
+  },
   setAgeGroup: (ageGroup) => {
     set({ ageGroup });
     const { user } = get();
@@ -101,7 +111,8 @@ export const useStore = create<WYRStore>((set, get) => ({
   questionsLoading: true,
   loadQuestions: async () => {
     set({ questionsLoading: true });
-    const questions = await fetchQuestions();
+    const { user } = get();
+    const questions = await fetchQuestions(user?.id);
     set({ questions, questionsLoading: false });
   },
 
@@ -170,20 +181,15 @@ export const useStore = create<WYRStore>((set, get) => ({
   },
 
   shouldResurfaceQuestion: (questionId) => {
-    const recentAnswer = get().getMostRecentAnswer(questionId);
-    if (!recentAnswer) return false;
-
-    const msPassed = Date.now() - recentAnswer.timestamp;
-    const hoursPassed = msPassed / (1000 * 60 * 60);
-
-    if (hoursPassed > 12) {
-      const lastHour = new Date(recentAnswer.timestamp).getHours();
-      const currentHour = new Date().getHours();
-      const wasDay = lastHour >= 6 && lastHour < 18;
-      const isDay = currentHour >= 6 && currentHour < 18;
-      return wasDay !== isDay;
-    }
-    return false;
+    const { answers } = get();
+    const matches = answers.filter((a) => a.questionId === questionId);
+    if (matches.length === 0) return false;
+    // Already answered twice — never resurface again
+    if (matches.length >= 2) return false;
+    // Answered once — resurface after 7 days for bias re-check
+    const latestAnswer = matches[matches.length - 1];
+    const daysPassed = (Date.now() - latestAnswer.timestamp) / (1000 * 60 * 60 * 24);
+    return daysPassed >= 7;
   },
 
   // UI

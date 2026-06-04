@@ -84,9 +84,7 @@ function AuthContent() {
             <span className="text-[11px] tracking-[0.2em] uppercase text-ghost/70 font-medium">
               {selectedMethod === "email" ? "Credentials" : "Gateway"}
             </span>
-            <span className="text-[9px] tracking-wider uppercase px-2 py-0.5 rounded-full bg-option-c/10 text-option-c border border-option-c/20 font-semibold">
-              Secure
-            </span>
+            
           </div>
           <div className="flex gap-1">
             {[...Array(5)].map((_, i) => (

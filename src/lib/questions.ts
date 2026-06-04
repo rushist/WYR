@@ -1,19 +1,24 @@
 import { supabase } from "./supabaseClient";
 import type { Question } from "@/data/questions";
 
-/** Fetch all questions from Supabase */
-export async function fetchQuestions(): Promise<Question[]> {
-  const { data, error } = await supabase
+/** Fetch questions from Supabase, filtered for the current user.
+ *  - If userId is provided, excludes questions answered in the last 7 days.
+ *  - Questions answered 7+ days ago are resurfaced once for bias re-check.
+ *  - If no userId (anonymous), returns all questions.
+ */
+export async function fetchQuestions(userId?: string): Promise<Question[]> {
+  // Fetch all questions
+  const { data: allQuestions, error } = await supabase
     .from("questions")
     .select("id, text, choice_a, choice_b, choice_c, category, severity")
     .order("created_at", { ascending: false });
 
-  if (error || !data) {
+  if (error || !allQuestions) {
     console.error("Failed to fetch questions:", error);
     return [];
   }
 
-  return data.map((q) => ({
+  const mapped: Question[] = allQuestions.map((q) => ({
     id: q.id,
     text: q.text,
     choiceA: q.choice_a,
@@ -21,6 +26,66 @@ export async function fetchQuestions(): Promise<Question[]> {
     choiceC: q.choice_c || undefined,
     category: q.category,
     severity: q.severity,
+  }));
+
+  if (!userId) return mapped;
+
+  // Fetch this user's answer history
+  const { data: userAnswers, error: ansErr } = await supabase
+    .from("answers")
+    .select("question_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (ansErr || !userAnswers) return mapped;
+
+  // Group answers by question_id — keep track of latest answer time and answer count
+  const answerMap = new Map<string, { latestAt: Date; count: number }>();
+  for (const a of userAnswers) {
+    const existing = answerMap.get(a.question_id);
+    const answeredAt = new Date(a.created_at);
+    if (!existing) {
+      answerMap.set(a.question_id, { latestAt: answeredAt, count: 1 });
+    } else {
+      existing.count++;
+      if (answeredAt > existing.latestAt) existing.latestAt = answeredAt;
+    }
+  }
+
+  const now = new Date();
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+  return mapped.filter((q) => {
+    const record = answerMap.get(q.id);
+    if (!record) return true; // Never answered — show it
+
+    // Already answered twice (original + bias re-check) — hide permanently
+    if (record.count >= 2) return false;
+
+    // Answered once: only resurface if 7+ days have passed
+    const msSinceAnswer = now.getTime() - record.latestAt.getTime();
+    return msSinceAnswer >= SEVEN_DAYS_MS;
+  });
+}
+
+/** Fetch a user's full answer history from Supabase (for restoring state on login) */
+export async function fetchUserAnswers(userId: string) {
+  const { data, error } = await supabase
+    .from("answers")
+    .select("question_id, choice, response_time_ms, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) {
+    console.error("Failed to fetch user answers:", error);
+    return [];
+  }
+
+  return data.map((a) => ({
+    questionId: a.question_id as string,
+    choice: a.choice as "A" | "B" | "C",
+    responseTimeMs: a.response_time_ms as number,
+    timestamp: new Date(a.created_at).getTime(),
   }));
 }
 
