@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store/useStore";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { fetchQuestionStats } from "@/lib/questions";
 
 const cards = [
   {
@@ -52,12 +53,44 @@ const cards = [
 export default function DashboardPage() {
   const router = useRouter();
   const { isAuthenticated, user, answeredCount, answers, logout } = useStore();
+  const [similarityScore, setSimilarityScore] = useState<string>("—");
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/auth");
     }
   }, [isAuthenticated, router]);
+
+  // Calculate real similarity score
+  useEffect(() => {
+    if (answers.length === 0) return;
+
+    async function calculateSimilarity() {
+      let majorityMatches = 0;
+      let checked = 0;
+
+      for (const ans of answers) {
+        const stats = await fetchQuestionStats(ans.questionId);
+        if (!stats || stats.total < 2) continue;
+
+        const majorityKey =
+          stats.pctA >= stats.pctB && stats.pctA >= stats.pctC
+            ? "A"
+            : stats.pctB >= stats.pctC
+            ? "B"
+            : "C";
+
+        if (ans.choice === majorityKey) majorityMatches++;
+        checked++;
+      }
+
+      if (checked > 0) {
+        setSimilarityScore(`${Math.round((majorityMatches / checked) * 100)}%`);
+      }
+    }
+
+    calculateSimilarity();
+  }, [answers]);
 
   if (!isAuthenticated) return null;
 
@@ -116,14 +149,8 @@ export default function DashboardPage() {
           {[
             { label: "Questions Answered", value: answeredCount.toString() },
             { label: "Avg Response Time", value: `${avgSpeed}s` },
-            {
-              label: "Similarity Score",
-              value:
-                answeredCount > 0
-                  ? `${Math.round(50 + Math.random() * 30)}%`
-                  : "—",
-            },
-          ].map((stat, i) => (
+            { label: "Similarity Score", value: similarityScore },
+          ].map((stat) => (
             <div
               key={stat.label}
               className="glass rounded-xl p-5 text-center"

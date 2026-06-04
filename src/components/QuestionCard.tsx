@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { Question } from "@/data/questions";
-import { getPercents } from "@/data/questions";
 import type { ChoiceKey } from "@/store/useStore";
 
 /* ── colour system for each option slot ─────────────────────────── */
@@ -65,15 +64,14 @@ export default function QuestionCard({
     (_, i) => i < question.severity
   );
 
-  const percents = getPercents(question);
   const hasThreeOptions = !!question.choiceC;
 
-  const choices: { key: ChoiceKey; text: string; pct: number }[] = [
-    { key: "A", text: question.choiceA, pct: percents.a },
-    { key: "B", text: question.choiceB, pct: percents.b },
+  const choices: { key: ChoiceKey; text: string }[] = [
+    { key: "A", text: question.choiceA },
+    { key: "B", text: question.choiceB },
   ];
   if (hasThreeOptions && question.choiceC) {
-    choices.push({ key: "C", text: question.choiceC, pct: percents.c! });
+    choices.push({ key: "C", text: question.choiceC });
   }
 
   return (
@@ -90,20 +88,15 @@ export default function QuestionCard({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1">
-            {severityDots.map((active, i) => (
-              <div
-                key={i}
-                className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                  active ? "bg-accent" : "bg-border/50"
-                }`}
-              />
-            ))}
-          </div>
-          <span className="text-[11px] text-ghost/50">
-            {question.totalResponses.toLocaleString()} responses
-          </span>
+        <div className="flex gap-1">
+          {severityDots.map((active, i) => (
+            <div
+              key={i}
+              className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                active ? "bg-accent" : "bg-border/50"
+              }`}
+            />
+          ))}
         </div>
       </div>
 
@@ -143,18 +136,13 @@ export default function QuestionCard({
                 }
               `}
             >
-              {/* Fill bar — FADES IN at final width (no slide) */}
-              {answered && (
+              {/* Selection highlight */}
+              {answered && isChosen && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
-                  style={{ width: `${choice.pct}%` }}
-                  className={`absolute inset-y-0 left-0 rounded-2xl ${
-                    isChosen
-                      ? theme.bgFill
-                      : "bg-ghost/5"
-                  }`}
+                  className={`absolute inset-y-0 left-0 w-full rounded-2xl ${theme.bgFill}`}
                 />
               )}
 
@@ -190,16 +178,14 @@ export default function QuestionCard({
                     {choice.text}
                   </span>
                 </span>
-                {answered && (
+                {answered && isChosen && (
                   <motion.span
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 }}
-                    className={`text-sm font-mono whitespace-nowrap ${
-                      isChosen ? theme.text : "text-ghost/40"
-                    }`}
+                    className={`text-sm font-mono whitespace-nowrap ${theme.text}`}
                   >
-                    {choice.pct}%
+                    ✓
                   </motion.span>
                 )}
               </span>

@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { supabase } from "@/lib/supabaseClient";
+import { fetchQuestions } from "@/lib/questions";
+import type { Question } from "@/data/questions";
 
 export type ChoiceKey = "A" | "B" | "C";
 export type Theme = "dark" | "light";
@@ -11,15 +14,22 @@ export interface Answer {
 }
 
 interface WYRStore {
-  // Auth
+  // Auth & Profile
   isAuthenticated: boolean;
   user: { email: string; id: string; name?: string } | null;
+  ageGroup: string | null;
   setAuth: (user: { email: string; id: string; name?: string } | null) => void;
+  setAgeGroup: (age: string) => void;
   logout: () => void;
 
   // Theme
   theme: Theme;
   toggleTheme: () => void;
+
+  // Questions from DB
+  questions: Question[];
+  questionsLoading: boolean;
+  loadQuestions: () => Promise<void>;
 
   // Question navigation
   currentIndex: number;
@@ -34,7 +44,8 @@ interface WYRStore {
     choice: ChoiceKey,
     responseTimeMs: number
   ) => void;
-  getAnswerForQuestion: (questionId: string) => Answer | undefined;
+  getMostRecentAnswer: (questionId: string) => Answer | undefined;
+  shouldResurfaceQuestion: (questionId: string) => boolean;
 
   // UI state
   showAnalytics: boolean;
@@ -47,12 +58,21 @@ export const useStore = create<WYRStore>((set, get) => ({
   // Auth
   isAuthenticated: false,
   user: null,
+  ageGroup: null,
   setAuth: (user) =>
     set({ user, isAuthenticated: !!user, showPaywall: false }),
+  setAgeGroup: (ageGroup) => {
+    set({ ageGroup });
+    const { user } = get();
+    if (user) {
+      supabase.from("profiles").upsert({ id: user.id, age_group: ageGroup }).then();
+    }
+  },
   logout: () =>
     set({
       user: null,
       isAuthenticated: false,
+      ageGroup: null,
       answers: [],
       answeredCount: 0,
       currentIndex: 0,
@@ -62,7 +82,6 @@ export const useStore = create<WYRStore>((set, get) => ({
   theme: "dark",
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
-    // Apply to DOM
     const html = document.documentElement;
     html.classList.add("theme-transition");
     if (next === "light") {
@@ -70,16 +89,23 @@ export const useStore = create<WYRStore>((set, get) => ({
     } else {
       html.classList.remove("light");
     }
-    // Remove transition class after animation
     setTimeout(() => html.classList.remove("theme-transition"), 500);
-    // Persist
     try {
       localStorage.setItem("wyr-theme", next);
     } catch {}
     set({ theme: next });
   },
 
-  // Questions
+  // Questions from DB
+  questions: [],
+  questionsLoading: true,
+  loadQuestions: async () => {
+    set({ questionsLoading: true });
+    const questions = await fetchQuestions();
+    set({ questions, questionsLoading: false });
+  },
+
+  // Navigation
   currentIndex: 0,
   nextQuestion: () =>
     set((s) => ({
@@ -91,11 +117,13 @@ export const useStore = create<WYRStore>((set, get) => ({
   // Answers
   answers: [],
   answeredCount: 0,
-  answerQuestion: (questionId, choice, responseTimeMs) => {
-    const { answers, answeredCount, isAuthenticated } = get();
+  answerQuestion: async (questionId, choice, responseTimeMs) => {
+    const { answers, answeredCount, isAuthenticated, user, ageGroup } = get();
 
-    const alreadyAnswered = answers.find((a) => a.questionId === questionId);
-    if (alreadyAnswered) return;
+    const recentAnswer = get().getMostRecentAnswer(questionId);
+    if (recentAnswer && Date.now() - recentAnswer.timestamp < 1000 * 60 * 60) {
+      return;
+    }
 
     const newAnswer: Answer = {
       questionId,
@@ -106,13 +134,25 @@ export const useStore = create<WYRStore>((set, get) => ({
 
     const newCount = answeredCount + 1;
 
+    // Optimistic UI update
     set({
       answers: [...answers, newAnswer],
       answeredCount: newCount,
       showAnalytics: true,
     });
 
-    // Paywall trigger: after 3 questions if not authenticated
+    // Save to Supabase (Background)
+    supabase.from("answers").insert({
+      question_id: questionId,
+      user_id: user?.id || null,
+      choice: choice,
+      response_time_ms: responseTimeMs,
+      age_group: ageGroup || null,
+    }).then(({ error }) => {
+      if (error) console.error("Failed to save answer to Supabase:", error);
+    });
+
+    // Paywall trigger
     if (!isAuthenticated && newCount >= 3) {
       setTimeout(() => {
         if (!get().isAuthenticated) {
@@ -121,8 +161,30 @@ export const useStore = create<WYRStore>((set, get) => ({
       }, 3500);
     }
   },
-  getAnswerForQuestion: (questionId) =>
-    get().answers.find((a) => a.questionId === questionId),
+
+  getMostRecentAnswer: (questionId) => {
+    const { answers } = get();
+    const matches = answers.filter((a) => a.questionId === questionId);
+    if (matches.length === 0) return undefined;
+    return matches[matches.length - 1];
+  },
+
+  shouldResurfaceQuestion: (questionId) => {
+    const recentAnswer = get().getMostRecentAnswer(questionId);
+    if (!recentAnswer) return false;
+
+    const msPassed = Date.now() - recentAnswer.timestamp;
+    const hoursPassed = msPassed / (1000 * 60 * 60);
+
+    if (hoursPassed > 12) {
+      const lastHour = new Date(recentAnswer.timestamp).getHours();
+      const currentHour = new Date().getHours();
+      const wasDay = lastHour >= 6 && lastHour < 18;
+      const isDay = currentHour >= 6 && currentHour < 18;
+      return wasDay !== isDay;
+    }
+    return false;
+  },
 
   // UI
   showAnalytics: false,

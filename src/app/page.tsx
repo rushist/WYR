@@ -1,25 +1,50 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import AnimatedBackground from "@/components/AnimatedBackground";
 import QuestionCard from "@/components/QuestionCard";
-import { questions } from "@/data/questions";
+import { useStore } from "@/store/useStore";
+import { fetchGlobalStats } from "@/lib/questions";
 import type { ChoiceKey } from "@/store/useStore";
 
 export default function LandingPage() {
   const router = useRouter();
   const [answered, setAnswered] = useState<ChoiceKey | null>(null);
   const feedRef = useRef<HTMLDivElement>(null);
+  const { questions, loadQuestions } = useStore();
 
-  const previewQuestion = questions[0];
+  const [globalStats, setGlobalStats] = useState<{
+    totalResponses: number;
+    totalQuestions: number;
+    totalUsers: number;
+  } | null>(null);
 
-  const stats = [
-    { label: "responses recorded", value: "2.4M" },
-    { label: "questions active", value: "340+" },
-    { label: "countries", value: "187" },
-  ];
+  useEffect(() => {
+    loadQuestions();
+    fetchGlobalStats().then(setGlobalStats);
+  }, [loadQuestions]);
+
+  const previewQuestion = questions.length > 0 ? questions[0] : null;
+
+  const formatNumber = (n: number) => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toLocaleString("en-US");
+  };
+
+  const stats = globalStats
+    ? [
+        { label: "responses recorded", value: formatNumber(globalStats.totalResponses) },
+        { label: "questions active", value: formatNumber(globalStats.totalQuestions) },
+        { label: "unique users", value: formatNumber(globalStats.totalUsers) },
+      ]
+    : [
+        { label: "responses recorded", value: "—" },
+        { label: "questions active", value: "—" },
+        { label: "unique users", value: "—" },
+      ];
 
   return (
     <div className="relative min-h-screen">
@@ -115,27 +140,33 @@ export default function LandingPage() {
           Your first question
         </motion.p>
 
-        <QuestionCard
-          question={previewQuestion}
-          onAnswer={(choice) => setAnswered(choice)}
-          answered={answered}
-        />
+        {previewQuestion ? (
+          <>
+            <QuestionCard
+              question={previewQuestion}
+              onAnswer={(choice) => setAnswered(choice)}
+              answered={answered}
+            />
 
-        {answered && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.5 }}
-            className="mt-12"
-          >
-            <button
-              onClick={() => router.push("/feed")}
-              className="px-8 py-3 rounded-full border border-accent/40 text-accent
-                         hover:bg-accent/10 transition-colors text-sm font-medium"
-            >
-              Keep going →
-            </button>
-          </motion.div>
+            {answered && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.5 }}
+                className="mt-12"
+              >
+                <button
+                  onClick={() => router.push("/feed")}
+                  className="px-8 py-3 rounded-full border border-accent/40 text-accent
+                             hover:bg-accent/10 transition-colors text-sm font-medium"
+                >
+                  Keep going →
+                </button>
+              </motion.div>
+            )}
+          </>
+        ) : (
+          <p className="text-ghost/40 text-sm">Loading questions...</p>
         )}
       </section>
     </div>

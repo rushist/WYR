@@ -1,14 +1,28 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { Question } from "@/data/questions";
-import { getPercents } from "@/data/questions";
 import type { ChoiceKey } from "@/store/useStore";
+import { fetchQuestionStats, fetchQuestionDemographics } from "@/lib/questions";
+import {
+  Target,
+  Sparkles,
+  Zap,
+  HeartPulse,
+  BrainCircuit,
+  Users,
+  Timer,
+  TrendingUp,
+  Shield,
+  Landmark,
+  Scale,
+  Flame,
+  Compass,
+  Heart,
+} from "lucide-react";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
@@ -33,14 +47,186 @@ const BG_COLORS: Record<ChoiceKey, string> = {
   C: "bg-option-c/10 border-option-c/20",
 };
 
-/* ── personality signals ────────────────────────────────────── */
-const PERSONALITIES = [
-  { label: "Pragmatist", desc: "You chose the practical path" },
-  { label: "Idealist", desc: "You follow your principles" },
-  { label: "Contrarian", desc: "You swim against the current" },
-  { label: "Empath", desc: "You feel deeply for others" },
-  { label: "Strategist", desc: "You weigh every outcome" },
-];
+/* ── dynamic personality engine ────────────────────────────────────── */
+function getDynamicPersonality(
+  question: Question,
+  choice: ChoiceKey,
+  withMajority: boolean
+) {
+  const category = (question.category || "General").toLowerCase();
+  const choiceText = (
+    choice === "A"
+      ? question.choiceA
+      : choice === "B"
+      ? question.choiceB
+      : question.choiceC || ""
+  ).toLowerCase();
+  const questionText = question.text.toLowerCase();
+
+  // 1. Altruism vs Self-interest indicators
+  const isSocialOrAltruistic =
+    choiceText.includes("other") ||
+    choiceText.includes("save") ||
+    choiceText.includes("help") ||
+    choiceText.includes("people") ||
+    choiceText.includes("loved one") ||
+    choiceText.includes("friend") ||
+    choiceText.includes("family");
+
+  const isSelfInterest =
+    choiceText.includes("self") ||
+    choiceText.includes("money") ||
+    choiceText.includes("rich") ||
+    choiceText.includes("million") ||
+    choiceText.includes("alone") ||
+    choiceText.includes("private");
+
+  // 2. Category-specific mapping
+  if (category.includes("ethics") || category.includes("philosophy")) {
+    if (isSocialOrAltruistic) {
+      return {
+        label: "Altruist",
+        desc: "You prioritize the collective good and empathy.",
+        Icon: Heart,
+        bg: "bg-rose/10 border-rose/20",
+        text: "text-rose",
+        iconContainer: "bg-rose/20 text-rose",
+      };
+    }
+    if (isSelfInterest) {
+      return {
+        label: "Pragmatic Individualist",
+        desc: "You prioritize self-preservation and tangible outcomes.",
+        Icon: Scale,
+        bg: "bg-amber/10 border-amber/20",
+        text: "text-amber",
+        iconContainer: "bg-amber/20 text-amber",
+      };
+    }
+    return {
+      label: "Moral Philosopher",
+      desc: "You weigh complex ethical principles over simple comfort.",
+      Icon: Compass,
+      bg: "bg-emerald/10 border-emerald/20",
+      text: "text-emerald",
+      iconContainer: "bg-emerald/20 text-emerald",
+    };
+  }
+
+  if (
+    category.includes("survival") ||
+    questionText.includes("die") ||
+    questionText.includes("death") ||
+    questionText.includes("survive")
+  ) {
+    if (
+      choiceText.includes("know") ||
+      choiceText.includes("truth") ||
+      choiceText.includes("accept")
+    ) {
+      return {
+        label: "Stoic",
+        desc: "You face harsh realities head-on with courage.",
+        Icon: Shield,
+        bg: "bg-purple-400/10 border-purple-400/20",
+        text: "text-purple-400",
+        iconContainer: "bg-purple-400/20 text-purple-400",
+      };
+    }
+    return {
+      label: "Survivalist",
+      desc: "Your primary focus is staying alive and minimizing risk.",
+      Icon: Flame,
+      bg: "bg-rose/10 border-rose/20",
+      text: "text-rose",
+      iconContainer: "bg-rose/20 text-rose",
+    };
+  }
+
+  if (category.includes("technology") || category.includes("future")) {
+    if (
+      choiceText.includes("tech") ||
+      choiceText.includes("ai") ||
+      choiceText.includes("digital") ||
+      choiceText.includes("future")
+    ) {
+      return {
+        label: "Techno-Optimist",
+        desc: "You embrace the future and digital evolution.",
+        Icon: BrainCircuit,
+        bg: "bg-blue-400/10 border-blue-400/20",
+        text: "text-blue-400",
+        iconContainer: "bg-blue-400/20 text-blue-400",
+      };
+    }
+    return {
+      label: "Traditionalist",
+      desc: "You prefer the organic, tangible human experience.",
+      Icon: Landmark,
+      bg: "bg-emerald/10 border-emerald/20",
+      text: "text-emerald",
+      iconContainer: "bg-emerald/20 text-emerald",
+    };
+  }
+
+  if (
+    category.includes("money") ||
+    category.includes("wealth") ||
+    isSelfInterest
+  ) {
+    return {
+      label: "Financial Realist",
+      desc: "You value freedom, security, and economic stability.",
+      Icon: Landmark,
+      bg: "bg-amber/10 border-amber/20",
+      text: "text-amber",
+      iconContainer: "bg-amber/20 text-amber",
+    };
+  }
+
+  // 3. Fallbacks based on choices and majority alignment
+  if (!withMajority) {
+    return {
+      label: "Contrarian Rebel",
+      desc: "You swim against the current, valuing your own unique perspective.",
+      Icon: Zap,
+      bg: "bg-rose/10 border-rose/20",
+      text: "text-rose",
+      iconContainer: "bg-rose/20 text-rose",
+    };
+  }
+
+  if (isSocialOrAltruistic) {
+    return {
+      label: "Empath",
+      desc: "You feel deeply for others and make connection-driven choices.",
+      Icon: HeartPulse,
+      bg: "bg-rose/10 border-rose/20",
+      text: "text-rose",
+      iconContainer: "bg-rose/20 text-rose",
+    };
+  }
+
+  return {
+    label: "Idealist",
+    desc: "You stick to your core principles and values.",
+    Icon: Sparkles,
+    bg: "bg-emerald/10 border-emerald/20",
+      text: "text-emerald",
+      iconContainer: "bg-emerald/20 text-emerald",
+  };
+}
+
+interface Stats {
+  total: number;
+  pctA: number;
+  pctB: number;
+  pctC: number;
+  avgTime: number;
+  avgTimeA: number | null;
+  avgTimeB: number | null;
+  avgTimeC: number | null;
+}
 
 interface InsightsPanelProps {
   question: Question;
@@ -55,104 +241,123 @@ export default function InsightsPanel({
   responseTimeMs,
   onNext,
 }: InsightsPanelProps) {
-  const percents = getPercents(question);
   const hasThreeOptions = !!question.choiceC;
-  const userPct =
-    userChoice === "A"
-      ? percents.a
+
+  // Real DB Stats
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [demographics, setDemographics] = useState<
+    { age: string; A: number; B: number }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [s, d] = await Promise.all([
+        fetchQuestionStats(question.id),
+        fetchQuestionDemographics(question.id),
+      ]);
+      if (s) {
+        setStats({
+          total: s.total,
+          pctA: s.pctA,
+          pctB: s.pctB,
+          pctC: s.pctC,
+          avgTime: s.avgTime,
+          avgTimeA: s.avgTimeA,
+          avgTimeB: s.avgTimeB,
+          avgTimeC: s.avgTimeC,
+        });
+      }
+      setDemographics(d);
+      setLoading(false);
+    }
+    load();
+  }, [question.id]);
+
+  // Derived values (only when we have real stats)
+  const userPct = stats
+    ? userChoice === "A"
+      ? stats.pctA
       : userChoice === "B"
-      ? percents.b
-      : (percents.c ?? 0);
+      ? stats.pctB
+      : stats.pctC
+    : null;
 
-  // Majority check
-  const allPcts = [
-    percents.a,
-    percents.b,
-    ...(percents.c !== undefined ? [percents.c] : []),
-  ];
-  const maxPct = Math.max(...allPcts);
-  const majorityKey: ChoiceKey =
-    percents.a === maxPct ? "A" : percents.b === maxPct ? "B" : "C";
-  const withMajority = userChoice === majorityKey;
+  const majorityKey: ChoiceKey | null = stats
+    ? stats.pctA >= stats.pctB && stats.pctA >= stats.pctC
+      ? "A"
+      : stats.pctB >= stats.pctC
+      ? "B"
+      : "C"
+    : null;
 
-  // Speed percentile
-  const speedPercentile = Math.min(
-    99,
-    Math.max(5, Math.round(100 - responseTimeMs / 100))
-  );
+  const withMajority = majorityKey ? userChoice === majorityKey : false;
 
-  // Controversy score: how evenly split (50/50 = 100, 100/0 = 0)
+  // Speed percentile (real)
+  const speedPercentile = stats
+    ? Math.min(99, Math.max(1, Math.round(100 - (responseTimeMs / stats.avgTime) * 50)))
+    : null;
+
+  // Controversy score (real)
   const controversyScore = useMemo(() => {
+    if (!stats) return null;
     if (hasThreeOptions) {
-      // For 3 options, perfect split is 33/33/33
       const ideal = 100 / 3;
       const deviation =
-        Math.abs(percents.a - ideal) +
-        Math.abs(percents.b - ideal) +
-        Math.abs((percents.c ?? 0) - ideal);
+        Math.abs(stats.pctA - ideal) +
+        Math.abs(stats.pctB - ideal) +
+        Math.abs(stats.pctC - ideal);
       return Math.round(Math.max(0, 100 - deviation * 1.5));
     }
-    return Math.round(100 - Math.abs(percents.a - 50) * 2);
-  }, [percents, hasThreeOptions]);
+    return Math.round(100 - Math.abs(stats.pctA - 50) * 2);
+  }, [stats, hasThreeOptions]);
 
-  // Decision confidence (inverse of time, capped)
-  const confidence = Math.min(100, Math.round((3000 / responseTimeMs) * 100));
+  // Decision confidence (real)
+  const confidence = stats
+    ? Math.min(100, Math.round((stats.avgTime / responseTimeMs) * 100))
+    : null;
 
-  // Personality signal (seeded by question id)
+  // Personality signal
   const personality = useMemo(() => {
-    const seed =
-      question.id.charCodeAt(question.id.length - 1) +
-      (withMajority ? 0 : 2);
-    return PERSONALITIES[seed % PERSONALITIES.length];
-  }, [question.id, withMajority]);
+    return getDynamicPersonality(question, userChoice, withMajority);
+  }, [question, userChoice, withMajority]);
 
-  // Simulated trend data (7 data points over "weeks")
-  const trendData = useMemo(() => {
-    const base = percents.a;
-    return Array.from({ length: 7 }, (_, i) => {
-      const noise = Math.sin(i * 1.7 + question.id.length) * 8;
-      return {
-        week: `W${i + 1}`,
-        value: Math.round(Math.max(5, Math.min(95, base + noise + (i - 3) * 1.2))),
-      };
-    });
-  }, [percents.a, question.id]);
+  // Hesitation Factor
+  const hesitationText = useMemo(() => {
+    if (!stats || (!stats.avgTimeA && !stats.avgTimeB)) return null;
+    if (stats.avgTimeA && stats.avgTimeB) {
+      const diff = stats.avgTimeA - stats.avgTimeB;
+      if (Math.abs(diff) < 500) return "Both choices took similar time to decide";
+      if (diff < 0)
+        return `Choice A was ${(Math.abs(diff) / 1000).toFixed(1)}s faster — less hesitation`;
+      return `Choice B was ${(Math.abs(diff) / 1000).toFixed(1)}s faster — less hesitation`;
+    }
+    return null;
+  }, [stats]);
 
-  // Simulated demographic data
-  const demoData = useMemo(() => {
-    const b = percents.a;
-    return [
-      {
-        age: "18-24",
-        A: Math.round(b + Math.sin(1) * 12),
-        B: Math.round(100 - b - Math.sin(1) * 12),
-      },
-      {
-        age: "25-34",
-        A: Math.round(b + Math.sin(2) * 8),
-        B: Math.round(100 - b - Math.sin(2) * 8),
-      },
-      {
-        age: "35-44",
-        A: Math.round(b - Math.sin(3) * 6),
-        B: Math.round(100 - b + Math.sin(3) * 6),
-      },
-      {
-        age: "45+",
-        A: Math.round(b - 10),
-        B: Math.round(100 - b + 10),
-      },
-    ];
-  }, [percents.a]);
+  // Generation Gap
+  const genGap = useMemo(() => {
+    if (demographics.length < 2) return null;
+    const sortedByA = [...demographics].sort((a, b) => a.A - b.A);
+    const minA = sortedByA[0];
+    const maxA = sortedByA[sortedByA.length - 1];
+    if (maxA.A - minA.A > 20) {
+      return `${maxA.age} heavily prefers A (${maxA.A}%), while ${minA.age} leans B.`;
+    }
+    return "Consistent across generations.";
+  }, [demographics]);
 
   // Vote split bars
-  const voteBars: { key: ChoiceKey; label: string; pct: number }[] = [
-    { key: "A", label: question.choiceA, pct: percents.a },
-    { key: "B", label: question.choiceB, pct: percents.b },
-  ];
-  if (hasThreeOptions && question.choiceC) {
-    voteBars.push({ key: "C", label: question.choiceC, pct: percents.c! });
-  }
+  const voteBars: { key: ChoiceKey; label: string; pct: number }[] = stats
+    ? [
+        { key: "A", label: question.choiceA, pct: stats.pctA },
+        { key: "B", label: question.choiceB, pct: stats.pctB },
+        ...(hasThreeOptions && question.choiceC
+          ? [{ key: "C" as ChoiceKey, label: question.choiceC, pct: stats.pctC }]
+          : []),
+      ]
+    : [];
 
   const container = {
     hidden: { opacity: 0 },
@@ -166,6 +371,90 @@ export default function InsightsPanel({
     show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
 
+  const IconComponent = personality.Icon;
+
+  // ── Loading skeleton ──
+  if (loading) {
+    return (
+      <div className="w-full h-full overflow-y-auto pr-2 custom-scrollbar">
+        <div className="space-y-5 pb-6">
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={i}
+              className="glass rounded-xl p-4 animate-pulse"
+            >
+              <div className="h-3 bg-ghost/10 rounded w-1/3 mb-3" />
+              <div className="h-5 bg-ghost/10 rounded w-2/3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── No data yet (first respondent) ──
+  if (!stats) {
+    return (
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate="show"
+        className="w-full h-full overflow-y-auto pr-2 custom-scrollbar"
+      >
+        <div className="space-y-5 pb-6">
+          <motion.div variants={item}>
+            <p className="text-[10px] tracking-[0.25em] uppercase text-ghost/50 mb-1">
+              Insights
+            </p>
+            <p className="text-sm font-medium text-accent">
+              You&apos;re the first to answer! 🎯
+            </p>
+            <p className="text-xs text-ghost/50 mt-2">
+              Metrics will appear as others respond to this question.
+            </p>
+          </motion.div>
+
+          {/* Personality Signal still shows */}
+          <motion.div variants={item}>
+            <div className={`rounded-xl p-4 border ${personality.bg}`}>
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center ${personality.iconContainer}`}
+                >
+                  <IconComponent size={18} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${personality.text}`}>
+                    {personality.label}
+                  </p>
+                  <p className="text-xs text-ghost/60">{personality.desc}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div variants={item}>
+            <p className="text-xs text-ghost/40 text-center">
+              Your speed: {(responseTimeMs / 1000).toFixed(1)}s
+            </p>
+          </motion.div>
+
+          {/* Next button */}
+          <motion.div variants={item}>
+            <button
+              onClick={onNext}
+              className="w-full py-3 rounded-xl border border-border/40 bg-surface hover:bg-surface-light
+                         transition-colors text-sm font-medium text-ghost hover:text-text cursor-pointer"
+            >
+              Next Question →
+            </button>
+          </motion.div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // ── Full insights (real data) ──
   return (
     <motion.div
       variants={container}
@@ -200,10 +489,20 @@ export default function InsightsPanel({
             return (
               <div key={bar.key} className="space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className={isUser ? `${TEXT_COLORS[bar.key]} font-medium` : "text-ghost/70"}>
+                  <span
+                    className={
+                      isUser
+                        ? `${TEXT_COLORS[bar.key]} font-medium`
+                        : "text-ghost/70"
+                    }
+                  >
                     {bar.label}
                   </span>
-                  <span className={`font-mono ${isUser ? TEXT_COLORS[bar.key] : "text-ghost/50"}`}>
+                  <span
+                    className={`font-mono ${
+                      isUser ? TEXT_COLORS[bar.key] : "text-ghost/50"
+                    }`}
+                  >
                     {bar.pct}%
                   </span>
                 </div>
@@ -216,7 +515,9 @@ export default function InsightsPanel({
                       width: `${bar.pct}%`,
                       backgroundColor: isUser ? COLORS[bar.key] : undefined,
                     }}
-                    className={`h-full rounded-full ${!isUser ? "bg-ghost/20" : ""}`}
+                    className={`h-full rounded-full ${
+                      !isUser ? "bg-ghost/20" : ""
+                    }`}
                   />
                 </div>
               </div>
@@ -224,27 +525,65 @@ export default function InsightsPanel({
           })}
         </motion.div>
 
+        {/* You vs Humanity */}
+        <motion.div variants={item} className="glass rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Users size={14} className="text-accent" />
+            <p className="text-[10px] tracking-[0.2em] uppercase text-ghost/50 font-medium">
+              You vs Humanity
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-ghost/70">Agreed with you</span>
+              <span className={`text-sm font-bold font-mono ${TEXT_COLORS[userChoice]}`}>
+                {userPct}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-ghost/70">Your speed vs average</span>
+              <span className={`text-sm font-bold font-mono ${
+                responseTimeMs < stats.avgTime ? "text-emerald" : "text-amber"
+              }`}>
+                {responseTimeMs < stats.avgTime
+                  ? `${((1 - responseTimeMs / stats.avgTime) * 100).toFixed(0)}% faster`
+                  : `${((responseTimeMs / stats.avgTime - 1) * 100).toFixed(0)}% slower`}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-ghost/70">Speed percentile</span>
+              <span className="text-sm font-bold font-mono text-accent">
+                Top {speedPercentile}%
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Metrics Grid: Speed + Controversy + Confidence */}
         <motion.div variants={item} className="grid grid-cols-3 gap-3">
-          {/* Speed */}
           <div className="glass rounded-xl p-3 text-center">
-            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">Speed</p>
+            <div className="flex items-center justify-center mb-1">
+              <Timer size={11} className="text-ghost/50" />
+            </div>
+            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">
+              Speed
+            </p>
             <p className="font-mono text-lg font-bold">
               {(responseTimeMs / 1000).toFixed(1)}s
             </p>
-            <p className={`text-[10px] font-mono ${TEXT_COLORS[userChoice]}`}>
-              Top {speedPercentile}%
-            </p>
           </div>
-
-          {/* Controversy */}
           <div className="glass rounded-xl p-3 text-center">
-            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">Controversy</p>
+            <div className="flex items-center justify-center mb-1">
+              <TrendingUp size={11} className="text-ghost/50" />
+            </div>
+            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">
+              Controversy
+            </p>
             <p
               className={`font-mono text-lg font-bold ${
-                controversyScore > 70
+                controversyScore! > 70
                   ? "text-rose"
-                  : controversyScore > 40
+                  : controversyScore! > 40
                   ? "text-amber"
                   : "text-emerald"
               }`}
@@ -252,35 +591,63 @@ export default function InsightsPanel({
               {controversyScore}
             </p>
             <p className="text-[10px] text-ghost/40">
-              {controversyScore > 70
+              {controversyScore! > 70
                 ? "Very divisive"
-                : controversyScore > 40
+                : controversyScore! > 40
                 ? "Moderate"
                 : "Consensus"}
             </p>
           </div>
-
-          {/* Confidence */}
           <div className="glass rounded-xl p-3 text-center">
-            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">Confidence</p>
+            <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">
+              Confidence
+            </p>
             <p className="font-mono text-lg font-bold">{confidence}%</p>
             <p className="text-[10px] text-ghost/40">
-              {confidence > 70 ? "Decisive" : confidence > 40 ? "Considered" : "Hesitant"}
+              {confidence! > 70
+                ? "Decisive"
+                : confidence! > 40
+                ? "Considered"
+                : "Hesitant"}
             </p>
           </div>
         </motion.div>
 
+        {/* Hesitation Factor & Generation Gap */}
+        {(hesitationText || genGap) && (
+          <motion.div variants={item} className="grid grid-cols-2 gap-3">
+            {hesitationText && (
+              <div className="glass rounded-xl p-3">
+                <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">
+                  Hesitation Factor
+                </p>
+                <p className="text-xs text-ghost/80 mt-1">{hesitationText}</p>
+              </div>
+            )}
+            {genGap && (
+              <div className="glass rounded-xl p-3">
+                <p className="text-[9px] text-ghost/50 uppercase tracking-wider mb-1">
+                  Generation Gap
+                </p>
+                <p className="text-xs text-ghost/80 mt-1">{genGap}</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Personality Signal */}
         <motion.div variants={item}>
-          <div className={`rounded-xl p-4 border ${BG_COLORS[userChoice]}`}>
+          <div className={`rounded-xl p-4 border ${personality.bg}`}>
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-lg ${
-                userChoice === "A" ? "bg-option-a/20" : userChoice === "B" ? "bg-option-b/20" : "bg-option-c/20"
-              }`}>
-                {personality.label === "Contrarian" ? "⚡" : personality.label === "Empath" ? "💜" : personality.label === "Pragmatist" ? "🎯" : personality.label === "Idealist" ? "✨" : "♟️"}
+              <div
+                className={`w-9 h-9 rounded-lg flex items-center justify-center ${personality.iconContainer}`}
+              >
+                <IconComponent size={18} strokeWidth={2.5} />
               </div>
               <div>
-                <p className={`text-sm font-semibold ${TEXT_COLORS[userChoice]}`}>
+                <p
+                  className={`text-sm font-semibold ${personality.text}`}
+                >
                   {personality.label}
                 </p>
                 <p className="text-xs text-ghost/60">{personality.desc}</p>
@@ -289,66 +656,37 @@ export default function InsightsPanel({
           </div>
         </motion.div>
 
-        {/* Trend Sparkline */}
-        <motion.div variants={item} className="glass rounded-xl p-4">
-          <p className="text-[10px] tracking-[0.2em] uppercase text-ghost/50 font-medium mb-3">
-            Trend — Option A % over time
-          </p>
-          <div className="h-24">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={COLORS[userChoice]} stopOpacity={0.3} />
-                    <stop offset="100%" stopColor={COLORS[userChoice]} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(63,63,70,0.2)" />
-                <XAxis
-                  dataKey="week"
-                  tick={{ fontSize: 9, fill: "#a1a1aa" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke={COLORS[userChoice]}
-                  strokeWidth={2}
-                  fill="url(#trendGrad)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
+        {/* Demographics — ONLY if we have real data */}
+        {demographics.length > 0 && (
+          <motion.div variants={item} className="glass rounded-xl p-4">
+            <p className="text-[10px] tracking-[0.2em] uppercase text-ghost/50 font-medium mb-3">
+              By Age Group — Option A %
+            </p>
+            <div className="h-28">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={demographics} barGap={2}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(63,63,70,0.2)"
+                  />
+                  <XAxis
+                    dataKey="age"
+                    tick={{ fontSize: 9, fill: "#a1a1aa" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide domain={[0, 100]} />
+                  <Bar dataKey="A" fill={COLORS.A} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="B" fill={COLORS.B} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
 
-        {/* Demographics */}
-        <motion.div variants={item} className="glass rounded-xl p-4">
-          <p className="text-[10px] tracking-[0.2em] uppercase text-ghost/50 font-medium mb-3">
-            By Age Group — Option A %
-          </p>
-          <div className="h-28">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={demoData} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(63,63,70,0.2)" />
-                <XAxis
-                  dataKey="age"
-                  tick={{ fontSize: 9, fill: "#a1a1aa" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis hide domain={[0, 100]} />
-                <Bar dataKey="A" fill={COLORS.A} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="B" fill={COLORS.B} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        {/* Total responses */}
         <motion.div variants={item} className="text-center">
           <p className="text-xs text-ghost/40">
-            {(question.totalResponses + 1).toLocaleString()} total responses
+            {stats.total.toLocaleString("en-US")} total responses
           </p>
         </motion.div>
 

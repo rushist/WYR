@@ -3,27 +3,16 @@ export interface Question {
   text: string;
   choiceA: string;
   choiceB: string;
-  choiceC?: string; // Optional third choice
+  choiceC?: string;
   category: string;
   severity: number;
-  totalResponses: number;
-  percentA: number;
-  percentB?: number; // When choiceC exists, we need explicit B%. Otherwise B = 100 - A
-  percentC?: number; // Percent for choice C
 }
 
-/** Helper to get the display percentages for any question */
-export function getPercents(q: Question): { a: number; b: number; c?: number } {
-  if (q.choiceC) {
-    const a = q.percentA;
-    const b = q.percentB ?? Math.round((100 - a) / 2);
-    const c = q.percentC ?? 100 - a - b;
-    return { a, b, c };
-  }
-  return { a: q.percentA, b: 100 - q.percentA };
-}
-
-export const questions: Question[] = [
+/**
+ * Seed questions — used only for initial DB population via /api/seed-questions.
+ * The feed pulls questions from Supabase at runtime.
+ */
+export const seedQuestions: Question[] = [
   {
     id: "q1",
     text: "Would you rather know the date of your death or the cause of your death?",
@@ -31,8 +20,6 @@ export const questions: Question[] = [
     choiceB: "Know the cause",
     category: "Mortality",
     severity: 4,
-    totalResponses: 284719,
-    percentA: 38,
   },
   {
     id: "q2",
@@ -41,8 +28,6 @@ export const questions: Question[] = [
     choiceB: "1 person I love",
     category: "Ethics",
     severity: 5,
-    totalResponses: 512304,
-    percentA: 31,
   },
   {
     id: "q3",
@@ -51,8 +36,6 @@ export const questions: Question[] = [
     choiceB: "No one lies again",
     category: "Truth",
     severity: 3,
-    totalResponses: 198432,
-    percentA: 55,
   },
   {
     id: "q4",
@@ -61,8 +44,6 @@ export const questions: Question[] = [
     choiceB: "Forget everyone I know",
     category: "Identity",
     severity: 5,
-    totalResponses: 341205,
-    percentA: 42,
   },
   {
     id: "q5",
@@ -72,10 +53,6 @@ export const questions: Question[] = [
     choiceC: "Touch",
     category: "Experience",
     severity: 3,
-    totalResponses: 423891,
-    percentA: 52,
-    percentB: 31,
-    percentC: 17,
   },
   {
     id: "q6",
@@ -84,8 +61,6 @@ export const questions: Question[] = [
     choiceB: "Never speak again",
     category: "Society",
     severity: 4,
-    totalResponses: 267543,
-    percentA: 61,
   },
   {
     id: "q7",
@@ -94,8 +69,6 @@ export const questions: Question[] = [
     choiceB: "Fast-forward 10 years",
     category: "Time",
     severity: 3,
-    totalResponses: 389102,
-    percentA: 29,
   },
   {
     id: "q8",
@@ -105,10 +78,6 @@ export const questions: Question[] = [
     choiceC: "Be curious about me",
     category: "Power",
     severity: 3,
-    totalResponses: 301245,
-    percentA: 48,
-    percentB: 14,
-    percentC: 38,
   },
   {
     id: "q9",
@@ -117,8 +86,6 @@ export const questions: Question[] = [
     choiceB: "Hide all my secrets",
     category: "Privacy",
     severity: 4,
-    totalResponses: 445612,
-    percentA: 47,
   },
   {
     id: "q10",
@@ -127,8 +94,6 @@ export const questions: Question[] = [
     choiceB: "Never make new ones",
     category: "Identity",
     severity: 5,
-    totalResponses: 278934,
-    percentA: 35,
   },
   {
     id: "q11",
@@ -137,8 +102,6 @@ export const questions: Question[] = [
     choiceB: "Love everyone",
     category: "Empathy",
     severity: 4,
-    totalResponses: 356721,
-    percentA: 44,
   },
   {
     id: "q12",
@@ -148,10 +111,6 @@ export const questions: Question[] = [
     choiceC: "End climate change",
     category: "Society",
     severity: 3,
-    totalResponses: 621039,
-    percentA: 24,
-    percentB: 41,
-    percentC: 35,
   },
   {
     id: "q13",
@@ -160,8 +119,6 @@ export const questions: Question[] = [
     choiceB: "Happiest life",
     category: "Philosophy",
     severity: 4,
-    totalResponses: 289456,
-    percentA: 41,
   },
   {
     id: "q14",
@@ -170,8 +127,6 @@ export const questions: Question[] = [
     choiceB: "Guarantee one future",
     category: "Time",
     severity: 3,
-    totalResponses: 412783,
-    percentA: 52,
   },
   {
     id: "q15",
@@ -181,10 +136,6 @@ export const questions: Question[] = [
     choiceC: "See the future",
     category: "Power",
     severity: 4,
-    totalResponses: 534201,
-    percentA: 38,
-    percentB: 27,
-    percentC: 35,
   },
   {
     id: "q16",
@@ -193,8 +144,6 @@ export const questions: Question[] = [
     choiceB: "Extraordinarily kind",
     category: "Values",
     severity: 3,
-    totalResponses: 478923,
-    percentA: 27,
   },
   {
     id: "q17",
@@ -203,8 +152,6 @@ export const questions: Question[] = [
     choiceB: "Never care at all",
     category: "Identity",
     severity: 3,
-    totalResponses: 367812,
-    percentA: 39,
   },
   {
     id: "q18",
@@ -213,8 +160,6 @@ export const questions: Question[] = [
     choiceB: "Long and ordinary",
     category: "Mortality",
     severity: 4,
-    totalResponses: 589034,
-    percentA: 46,
   },
   {
     id: "q19",
@@ -223,8 +168,6 @@ export const questions: Question[] = [
     choiceB: "Never trust anyone",
     category: "Trust",
     severity: 4,
-    totalResponses: 312456,
-    percentA: 63,
   },
   {
     id: "q20",
@@ -234,10 +177,6 @@ export const questions: Question[] = [
     choiceC: "Merge with AI",
     category: "Society",
     severity: 2,
-    totalResponses: 445567,
-    percentA: 28,
-    percentB: 45,
-    percentC: 27,
   },
   {
     id: "q21",
@@ -246,8 +185,6 @@ export const questions: Question[] = [
     choiceB: "Feel nothing",
     category: "Emotion",
     severity: 4,
-    totalResponses: 298743,
-    percentA: 57,
   },
   {
     id: "q22",
@@ -256,8 +193,6 @@ export const questions: Question[] = [
     choiceB: "Never know others' thoughts",
     category: "Privacy",
     severity: 4,
-    totalResponses: 267834,
-    percentA: 22,
   },
   {
     id: "q23",
@@ -267,10 +202,6 @@ export const questions: Question[] = [
     choiceC: "Eliminate ignorance",
     category: "Ethics",
     severity: 4,
-    totalResponses: 489201,
-    percentA: 37,
-    percentB: 33,
-    percentC: 30,
   },
   {
     id: "q24",
@@ -279,8 +210,6 @@ export const questions: Question[] = [
     choiceB: "Most liked",
     category: "Identity",
     severity: 2,
-    totalResponses: 534892,
-    percentA: 41,
   },
   {
     id: "q25",
@@ -289,8 +218,6 @@ export const questions: Question[] = [
     choiceB: "Kind but sometimes dishonest",
     category: "Relationships",
     severity: 3,
-    totalResponses: 612034,
-    percentA: 44,
   },
   {
     id: "q26",
@@ -300,10 +227,6 @@ export const questions: Question[] = [
     choiceC: "Teleport anywhere",
     category: "Power",
     severity: 3,
-    totalResponses: 345678,
-    percentA: 22,
-    percentB: 31,
-    percentC: 47,
   },
   {
     id: "q27",
@@ -312,8 +235,6 @@ export const questions: Question[] = [
     choiceB: "Live as an unknown villain",
     category: "Legacy",
     severity: 5,
-    totalResponses: 423190,
-    percentA: 68,
   },
   {
     id: "q28",
@@ -322,7 +243,5 @@ export const questions: Question[] = [
     choiceB: "Saddest moments",
     category: "Empathy",
     severity: 3,
-    totalResponses: 287654,
-    percentA: 72,
   },
 ];

@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { questions } from "@/data/questions";
 import { useStore } from "@/store/useStore";
 import type { ChoiceKey } from "@/store/useStore";
 import QuestionCard from "@/components/QuestionCard";
 import InsightsPanel from "@/components/InsightsPanel";
 import PaywallModal from "@/components/PaywallModal";
+import AgeGroupModal from "@/components/AgeGroupModal";
 
 export default function FeedPage() {
   const {
+    questions,
+    questionsLoading,
+    loadQuestions,
     currentIndex,
     nextQuestion,
     answerQuestion,
-    getAnswerForQuestion,
+    getMostRecentAnswer,
     showAnalytics,
     answeredCount,
   } = useStore();
@@ -22,16 +25,30 @@ export default function FeedPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollLock = useRef(false);
 
-  const currentQuestion = questions[currentIndex % questions.length];
-  const existingAnswer = getAnswerForQuestion(currentQuestion.id);
+  // Load questions from DB on mount
+  useEffect(() => {
+    loadQuestions();
+  }, [loadQuestions]);
+
+  console.log("FEED QUESTIONS LOADED IN CLIENT:", questions);
+
+  const currentQuestion = questions.length > 0
+    ? questions[currentIndex % questions.length]
+    : null;
+
+  const existingAnswer = currentQuestion
+    ? getMostRecentAnswer(currentQuestion.id)
+    : undefined;
   const isAnswered = !!existingAnswer;
   const showInsights = isAnswered && showAnalytics;
 
   const handleAnswer = useCallback(
     (choice: ChoiceKey, responseTimeMs: number) => {
-      answerQuestion(currentQuestion.id, choice, responseTimeMs);
+      if (currentQuestion) {
+        answerQuestion(currentQuestion.id, choice, responseTimeMs);
+      }
     },
-    [currentQuestion.id, answerQuestion]
+    [currentQuestion?.id, answerQuestion]
   );
 
   const handleNext = useCallback(() => {
@@ -49,12 +66,10 @@ export default function FeedPage() {
     const handleWheel = (e: WheelEvent) => {
       if (scrollLock.current) return;
       if (!existingAnswer) return;
-
       if (e.deltaY > 30) {
         handleNext();
       }
     };
-
     window.addEventListener("wheel", handleWheel, { passive: true });
     return () => window.removeEventListener("wheel", handleWheel);
   }, [existingAnswer, handleNext]);
@@ -62,21 +77,17 @@ export default function FeedPage() {
   // Touch swipe support
   useEffect(() => {
     let startY = 0;
-
     const handleTouchStart = (e: TouchEvent) => {
       startY = e.touches[0].clientY;
     };
-
     const handleTouchEnd = (e: TouchEvent) => {
       if (scrollLock.current) return;
       if (!existingAnswer) return;
-
       const deltaY = startY - e.changedTouches[0].clientY;
       if (deltaY > 60) {
         handleNext();
       }
     };
-
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
@@ -95,10 +106,32 @@ export default function FeedPage() {
         }
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [existingAnswer, handleNext]);
+
+  // Loading state
+  if (questionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-ghost/60 text-sm">Loading questions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-ghost/60 text-lg">No questions yet.</p>
+          <p className="text-ghost/40 text-sm">Run the seed or scrape endpoint to populate questions.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -122,7 +155,7 @@ export default function FeedPage() {
 
       {/* Main split layout */}
       <div className="w-full max-w-7xl mx-auto px-8 py-20 flex items-start justify-center gap-8">
-        {/* Left: Question card — slides left when insights show */}
+        {/* Left: Question card */}
         <motion.div
           animate={{
             width: showInsights ? "55%" : "100%",
@@ -151,7 +184,7 @@ export default function FeedPage() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Right: Insights panel — slides in from right */}
+        {/* Right: Insights panel */}
         <AnimatePresence>
           {showInsights && existingAnswer && (
             <motion.div
@@ -186,8 +219,9 @@ export default function FeedPage() {
         </motion.p>
       )}
 
-      {/* Paywall */}
+      {/* Modals */}
       <PaywallModal />
+      <AgeGroupModal />
     </div>
   );
 }
